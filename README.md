@@ -1,12 +1,12 @@
 # Reya Wallet Dashboard
 
-A wallet dashboard UI inspired by the Reya trading layout, with support for:
+A live wallet dashboard UI inspired by the Reya trading layout, with:
 
-- account value / margin usage / unrealized PnL / staked srUSD
-- live-updating positions table
-- trade history + realized PnL summary
-- market intel, spot board, and risk meter
-- wallet input for any EVM address
+- auto WebSocket connection to Reya DEX V2
+- live wallet positions stream
+- live wallet execution stream (trade history panel)
+- live market summary and prices streams
+- risk, margin, and exposure estimates from streaming data
 
 ## Run locally
 
@@ -16,47 +16,23 @@ python3 -m http.server 4173
 
 Open <http://localhost:4173>.
 
+## How live API is now handled automatically
+
+When you enter a wallet and click **Load Wallet**, the app automatically connects to Reya WebSocket V2 and subscribes to:
+
+- `/v2/wallet/{address}/positions`
+- `/v2/wallet/{address}/perpExecutions`
+- `/v2/prices`
+- `/v2/markets/summary`
+
+Primary endpoint: `wss://ws.reya.xyz`  
+Fallback endpoint: `wss://websocket-testnet.reya.xyz`
+
+The app handles heartbeat ping/pong automatically and reconnects with backoff if disconnected.
+
 ## Publish as a live website on GitHub Pages
 
-This repo includes `.github/workflows/deploy-pages.yml` and is ready to deploy.
-
-### 1) Push to GitHub
-
-Push this branch to your repository:
-
-```bash
-git push origin work
-```
-
-(Workflow also listens on `main` and `master`.)
-
-### 2) Enable Pages with GitHub Actions
-
-In your GitHub repo:
-
-- **Settings** → **Pages**
-- Under **Build and deployment**, set **Source** to **GitHub Actions**
-
-### 3) Wait for deployment
-
-- Open **Actions** tab
-- Wait for **Deploy static dashboard to GitHub Pages** to pass
-
-### 4) Open your live site
-
-Your URL will be:
-
-- Project site: `https://<your-username>.github.io/<repo-name>/`
-- User site repo (`<your-username>.github.io`): `https://<your-username>.github.io/`
-
-## API integration
-
-By default, the dashboard runs in demo mode (deterministic mock data).
-
-To connect real endpoints, open the app and fill the **API settings** section with URLs that include `{wallet}` placeholders, for example:
-
-- `https://api.example.com/wallet/{wallet}/overview`
-- `https://api.example.com/wallet/{wallet}/positions`
-- `https://api.example.com/wallet/{wallet}/trades`
-
-The settings are stored in browser localStorage.
+1. Push to GitHub.
+2. In **Settings → Pages**, set source to **GitHub Actions**.
+3. Wait for **Deploy static dashboard to GitHub Pages** workflow.
+4. Open: `https://<your-username>.github.io/<repo-name>/`
