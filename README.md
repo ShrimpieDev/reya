@@ -73,3 +73,5 @@ Note: this coding environment can commit changes, but it cannot push to your Git
 6. If GitHub says "This branch had an error being deployed", keep `.nojekyll` in the repo root to bypass Jekyll branch-build failures.
 
 7. If you see **"failed (outdated) deployment"**, that is usually a canceled older run. Open the latest run for the same branch and confirm it succeeded.
+
+8. Manual **Run workflow** from a feature branch can still be rejected by environment protection; deploy from `main` (or `master`) only.
