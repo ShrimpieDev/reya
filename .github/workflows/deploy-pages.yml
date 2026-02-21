@@ -13,10 +13,6 @@ permissions:
 
 jobs:
   deploy:
-    if: github.ref_name == 'main' || github.ref_name == 'master'
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
     runs-on: ubuntu-latest
 
     steps:

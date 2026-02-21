@@ -75,3 +75,5 @@ Note: this coding environment can commit changes, but it cannot push to your Git
 7. If you see **"failed (outdated) deployment"**, that is usually a canceled older run. Open the latest run for the same branch and confirm it succeeded.
 
 8. Manual **Run workflow** from a feature branch can still be rejected by environment protection; deploy from `main` (or `master`) only.
+
+9. If your repo has strict **github-pages environment protection** and deploys keep getting rejected, use this workflow version without an explicit `environment:` block (already applied here).
