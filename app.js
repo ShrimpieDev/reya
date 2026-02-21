@@ -147,11 +147,11 @@ function normalizeTransferType(value) {
   return "Transfer";
 }
 
-function normalizeTransfer(row) {
+function normalizeTransfer(row, forcedType) {
   const amount = Number(firstDefined(row, ["amountUsd", "usdAmount", "amount", "value", "delta", "change", "quantity"]) || 0);
   const timestamp = Number(firstDefined(row, ["timestamp", "createdAt", "updatedAt", "time", "executedAt"]) || Date.now());
   const directType = firstDefined(row, ["type", "eventType", "action", "txType", "kind"]);
-  const type = normalizeTransferType(directType || (amount < 0 ? "withdrawal" : amount > 0 ? "deposit" : "transfer"));
+  const type = forcedType || normalizeTransferType(directType || (amount < 0 ? "withdrawal" : amount > 0 ? "deposit" : "transfer"));
   return {
     time: timestamp,
     type,
@@ -160,6 +160,18 @@ function normalizeTransfer(row) {
     token: firstDefined(row, ["asset", "token", "symbol", "currency"]) || "USD",
     txHash: firstDefined(row, ["txHash", "transactionHash", "hash", "id"]) || "-",
   };
+}
+
+function extractTransferRows(payload) {
+  if (Array.isArray(payload)) return payload.map((row) => normalizeTransfer(row));
+  if (!payload || typeof payload !== "object") return [];
+
+  const out = [];
+  if (Array.isArray(payload.deposits)) out.push(...payload.deposits.map((row) => normalizeTransfer(row, "Deposit")));
+  if (Array.isArray(payload.withdrawals)) out.push(...payload.withdrawals.map((row) => normalizeTransfer(row, "Withdrawal")));
+  if (out.length) return out;
+
+  return extractRows(payload).map((row) => normalizeTransfer(row));
 }
 
 async function loadTransfers(wallet) {
@@ -175,7 +187,7 @@ async function loadTransfers(wallet) {
     for (const path of pathOptions) {
       try {
         const payload = await fetchJson(`${base}${path}`);
-        const rows = extractRows(payload).map(normalizeTransfer).filter((t) => Number.isFinite(t.amount) && t.amount > 0);
+        const rows = extractTransferRows(payload).filter((t) => Number.isFinite(t.amount) && t.amount > 0);
         if (rows.length) {
           state.transfers = rows.sort((a, b) => b.time - a.time).slice(0, 200);
           state.transferSource = `${base}${path}`;
@@ -290,7 +302,7 @@ function handleMessage(msg) {
   } else if (msg.channel.endsWith("/orderChanges")) {
     state.orders = extractRows(msg.data).slice(0, 50);
   } else if (msg.channel.endsWith("/transfers") || msg.channel.endsWith("/balanceChanges")) {
-    const incoming = extractRows(msg.data).map(normalizeTransfer).filter((t) => Number.isFinite(t.amount) && t.amount > 0);
+    const incoming = extractTransferRows(msg.data).filter((t) => Number.isFinite(t.amount) && t.amount > 0);
     state.transfers = [...incoming, ...state.transfers].sort((a, b) => b.time - a.time).slice(0, 200);
   }
 
@@ -365,6 +377,18 @@ function deriveAccountNow(positions, unrealized, grossExposure) {
   return Number.isFinite(inferred) && inferred > 0 ? inferred : grossExposure;
 }
 
+function deriveCollateralNow() {
+  const candidates = [];
+  for (const pos of state.positionsBySymbol.values()) {
+    const c = Number(firstDefined(pos, ["collateral", "marginBalance", "accountCollateral", "equity", "accountValue", "balance"]));
+    if (Number.isFinite(c) && c > 0) candidates.push(c);
+  }
+  if (candidates.length) return Math.max(...candidates);
+
+  const transferNet = state.transfers.reduce((sum, t) => sum + t.signedAmount, 0);
+  return Number.isFinite(transferNet) ? Math.max(0, transferNet) : 0;
+}
+
 function computeTradePnlEst(t) {
   const livePrice = Number(state.pricesBySymbol.get(t.market)?.poolPrice ?? state.pricesBySymbol.get(t.market)?.oraclePrice ?? t.price);
   const direction = t.side === "Long" ? 1 : t.side === "Short" ? -1 : 0;
@@ -382,6 +406,12 @@ function render() {
   $("accountBreakdown").textContent = `Exposure ${formatUsd(grossExposure)} · Open Orders ${state.orders.length}`;
   $("marginUsage").textContent = `${marginUsage.toFixed(2)}%`;
   $("marginBar").style.width = `${marginUsage}%`;
+
+  const collateralNow = deriveCollateralNow();
+  $("collateralNow").textContent = formatUsd(collateralNow);
+  $("collateralNow").className = `metric-value ${collateralNow > 0 ? "pnl-positive" : "muted"}`;
+  $("collateralDetails").textContent = collateralNow > 0 ? "Estimated from live wallet/account fields" : "No collateral field returned yet";
+
   $("unrealizedPnl").textContent = formatUsd(unrealized);
   $("unrealizedPnl").className = `metric-value ${unrealized >= 0 ? "pnl-positive" : "pnl-loss"}`;
   $("pnlDetails").textContent = `${positions.length} positions · wallet ${short(state.wallet)}`;

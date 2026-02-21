@@ -21,7 +21,7 @@ button { border-radius: 8px; border: 1px solid #2e9eff; background: linear-gradi
 .status { font-size: 0.9rem; }
 .muted { color: var(--muted); }
 
-.metrics-grid { display: grid; grid-template-columns: repeat(3, minmax(220px, 1fr)); gap: 14px; }
+.metrics-grid { display: grid; grid-template-columns: repeat(4, minmax(220px, 1fr)); gap: 14px; }
 .metric-card { padding: 20px; min-height: 150px; }
 .metric-card h2 { margin: 0; font-size: 1.05rem; font-weight: 500; text-transform: uppercase; letter-spacing: .06em; color: #c5caea; }
 .metric-value { font-size: clamp(1.3rem, 2.2vw, 2.8rem); font-weight: 700; letter-spacing: .03em; margin: 10px 0; }
