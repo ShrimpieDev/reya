@@ -10,20 +10,53 @@
     <main class="dashboard">
       <section class="search-panel glass">
         <h1>Reya Wallet Dashboard (Live)</h1>
-        <p>Live mode only: enter any EVM wallet and the app auto-subscribes to Reya WebSocket V2 streams.</p>
+        <p>
+          Live mode only: enter any EVM wallet and the app auto-subscribes to Reya WebSocket V2 streams.
+        </p>
         <form id="walletForm">
-          <input id="walletInput" name="wallet" type="text" placeholder="0x..." autocomplete="off" spellcheck="false" />
+          <input
+            id="walletInput"
+            name="wallet"
+            type="text"
+            placeholder="0x..."
+            autocomplete="off"
+            spellcheck="false"
+          />
           <button type="submit">Load Wallet</button>
         </form>
         <p id="status" class="status">Ready.</p>
       </section>
 
       <section class="metrics-grid">
-        <article class="metric-card glass"><h2>Total On Account</h2><p id="accountValue" class="metric-value">$0.00</p><p id="accountBreakdown" class="muted">Live exposure and open-order context</p></article>
-        <article class="metric-card glass"><h2>Margin Usage</h2><p id="marginUsage" class="metric-value accent">0.00%</p><div class="progress"><div id="marginBar"></div></div><div class="progress-labels muted"><span>Safe</span><span>40%</span><span>80%</span><span>LIQ</span></div></article>
-        <article class="metric-card glass"><h2>Collateral Now</h2><p id="collateralNow" class="metric-value">$0.00</p><p id="collateralDetails" class="muted">Current collateral from wallet data</p></article>
-        <article class="metric-card glass"><h2>Unrealized PnL</h2><p id="unrealizedPnl" class="metric-value pnl-negative">$0.00</p><p id="pnlDetails" class="muted">Live from wallet positions</p></article>
+        <article class="metric-card glass">
+          <h2>Total On Account</h2>
+          <p id="accountValue" class="metric-value">$0.00</p>
+          <p id="accountBreakdown" class="muted">Live exposure and open-order context</p>
+        </article>
 
+        <article class="metric-card glass">
+          <h2>Margin Usage</h2>
+          <p id="marginUsage" class="metric-value accent">0.00%</p>
+          <div class="progress"><div id="marginBar"></div></div>
+          <div class="progress-labels muted">
+            <span>Safe</span>
+            <span>40%</span>
+            <span>80%</span>
+            <span>LIQ</span>
+          </div>
+        </article>
+
+        <article class="metric-card glass">
+          <h2>Collateral Now</h2>
+          <p id="collateralNow" class="metric-value">$0.00</p>
+          <p id="collateralDetails" class="muted">Current collateral from wallet data</p>
+        </article>
+
+        <article class="metric-card glass">
+          <h2>Unrealized PnL</h2>
+          <p id="unrealizedPnl" class="metric-value pnl-negative">$0.00</p>
+          <p id="pnlDetails" class="muted">Live from wallet positions</p>
+        </article>
       </section>
 
       <nav class="tabs glass" id="tabs">
@@ -34,13 +67,92 @@
       </nav>
 
       <section class="tab-panels">
-        <article class="panel active glass" id="panel-positions"><table><thead><tr><th>Market</th><th>Side</th><th>Size</th><th>Account ID</th><th>Position Value</th><th>Live PnL</th><th>Mark Price</th><th>Entry</th></tr></thead><tbody id="positionsTable"></tbody></table></article>
-        <article class="panel glass" id="panel-trade-history"><div class="split"><div><h3>Last 50 Executions</h3><table><thead><tr><th>Time</th><th>Market</th><th>Side</th><th>Size</th><th>Price</th><th>Fee</th><th>P/L</th></tr></thead><tbody id="tradeHistoryTable"></tbody></table></div><div class="pnl-box"><h3>Execution Summary</h3><p class="muted">Total fees</p><p id="realizedPnl" class="metric-value">$0.00</p><p class="muted">Buy ratio</p><p id="winRate" class="metric-value">0%</p></div></div></article>
-        <article class="panel glass" id="panel-spot-trades"><h3>Spot Buys / Sells History</h3><p class="muted">Historical spot buy/sell records for this wallet (not live streaming).</p><table><thead><tr><th>Time</th><th>Market</th><th>Side</th><th>Size</th><th>Price</th><th>Value</th><th>Type</th></tr></thead><tbody id="spotTradesTable"></tbody></table></article>
-        <article class="panel glass" id="panel-transfers"><h3>Deposits / Withdrawals</h3><p class="muted">Wallet cash flow into/out of Reya by day and hour.</p><table><thead><tr><th>Time</th><th>Type</th><th>Asset</th><th>Amount</th><th>Tx</th></tr></thead><tbody id="transfersTable"></tbody></table></article>
+        <article class="panel active glass" id="panel-positions">
+          <table>
+            <thead>
+              <tr>
+                <th>Market</th>
+                <th>Side</th>
+                <th>Size</th>
+                <th>Account ID</th>
+                <th>Position Value</th>
+                <th>Live PnL</th>
+                <th>Mark Price</th>
+                <th>Entry</th>
+              </tr>
+            </thead>
+            <tbody id="positionsTable"></tbody>
+          </table>
+        </article>
 
+        <article class="panel glass" id="panel-trade-history">
+          <div class="split">
+            <div>
+              <h3>Last 50 Executions</h3>
+              <table>
+                <thead>
+                  <tr>
+                    <th>Time</th>
+                    <th>Market</th>
+                    <th>Side</th>
+                    <th>Size</th>
+                    <th>Price</th>
+                    <th>Fee</th>
+                    <th>P/L</th>
+                  </tr>
+                </thead>
+                <tbody id="tradeHistoryTable"></tbody>
+              </table>
+            </div>
+
+            <div class="pnl-box">
+              <h3>Execution Summary</h3>
+              <p class="muted">Total fees</p>
+              <p id="realizedPnl" class="metric-value">$0.00</p>
+              <p class="muted">Buy ratio</p>
+              <p id="winRate" class="metric-value">0%</p>
+            </div>
+          </div>
+        </article>
+
+        <article class="panel glass" id="panel-spot-trades">
+          <h3>Spot Buys / Sells History</h3>
+          <p class="muted">Historical spot buy/sell records for this wallet (not live streaming).</p>
+          <table>
+            <thead>
+              <tr>
+                <th>Time</th>
+                <th>Market</th>
+                <th>Side</th>
+                <th>Size</th>
+                <th>Price</th>
+                <th>Value</th>
+                <th>Type</th>
+              </tr>
+            </thead>
+            <tbody id="spotTradesTable"></tbody>
+          </table>
+        </article>
+
+        <article class="panel glass" id="panel-transfers">
+          <h3>Deposits / Withdrawals</h3>
+          <p class="muted">Wallet cash flow into/out of Reya by day and hour.</p>
+          <table>
+            <thead>
+              <tr>
+                <th>Time</th>
+                <th>Type</th>
+                <th>Asset</th>
+                <th>Amount</th>
+                <th>Tx</th>
+              </tr>
+            </thead>
+            <tbody id="transfersTable"></tbody>
+          </table>
+        </article>
       </section>
     </main>
+
     <script src="app.js"></script>
   </body>
 </html>
