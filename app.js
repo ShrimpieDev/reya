@@ -36,10 +36,13 @@ function normalizeSideLabel(value) {
 }
 
 function inferSide(sideValue, qtyValue) {
+  const normalizedSide = normalizeSideLabel(sideValue);
+  if (normalizedSide) return normalizedSide;
+
   const qty = Number(qtyValue || 0);
   if (qty < 0) return "Short";
   if (qty > 0) return "Long";
-  return normalizeSideLabel(sideValue) || "N/A";
+  return "N/A";
 }
 
 const parseSide = (side) => normalizeSideLabel(side) || side || "N/A";
