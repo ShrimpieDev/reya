@@ -7,6 +7,8 @@ const state = {
   orders: [],
   pricesBySymbol: new Map(),
   marketSummaryBySymbol: new Map(),
+  transfers: [],
+  transferSource: "",
   ws: null,
   reconnectTimer: null,
   reconnectAttempt: 0,
@@ -84,6 +86,57 @@ function positionPnl(pos, signedQty, markPrice, entry) {
   return signedQty * (markPrice - entry);
 }
 
+function normalizeTransferType(value) {
+  const raw = String(value || "").toLowerCase();
+  if (["deposit", "deposited", "in", "credit", "add", "added"].some((x) => raw.includes(x))) return "Deposit";
+  if (["withdraw", "withdrawal", "out", "debit", "remove", "removed"].some((x) => raw.includes(x))) return "Withdrawal";
+  return "Transfer";
+}
+
+function normalizeTransfer(row) {
+  const amount = Number(firstDefined(row, ["amountUsd", "usdAmount", "amount", "value", "delta", "change", "quantity"]) || 0);
+  const timestamp = Number(firstDefined(row, ["timestamp", "createdAt", "updatedAt", "time", "executedAt"]) || Date.now());
+  const directType = firstDefined(row, ["type", "eventType", "action", "txType", "kind"]);
+  const type = normalizeTransferType(directType || (amount < 0 ? "withdrawal" : amount > 0 ? "deposit" : "transfer"));
+  return {
+    time: timestamp,
+    type,
+    amount: Math.abs(amount),
+    signedAmount: type === "Withdrawal" ? -Math.abs(amount) : Math.abs(amount),
+    token: firstDefined(row, ["asset", "token", "symbol", "currency"]) || "USD",
+    txHash: firstDefined(row, ["txHash", "transactionHash", "hash", "id"]) || "-",
+  };
+}
+
+async function loadTransfers(wallet) {
+  const pathOptions = [
+    `/v2/wallet/${wallet}/transfers`,
+    `/v2/wallet/${wallet}/balanceChanges`,
+    `/v2/wallet/${wallet}/deposits`,
+    `/v2/wallet/${wallet}/withdrawals`,
+    `/v2/wallet/${wallet}/cashflow`,
+  ];
+
+  for (const base of REST_CANDIDATES) {
+    for (const path of pathOptions) {
+      try {
+        const payload = await fetchJson(`${base}${path}`);
+        const rows = extractRows(payload).map(normalizeTransfer).filter((t) => Number.isFinite(t.amount) && t.amount > 0);
+        if (rows.length) {
+          state.transfers = rows.sort((a, b) => b.time - a.time).slice(0, 200);
+          state.transferSource = `${base}${path}`;
+          return true;
+        }
+      } catch {
+        // continue lookup
+      }
+    }
+  }
+  state.transferSource = "No transfer endpoint discovered yet";
+  state.transfers = [];
+  return false;
+}
+
 function setConnectionStatus(main, details, positive = true) {
   $("connectionValue").textContent = main;
   $("connectionValue").className = `metric-value ${positive ? "positive" : "pnl-negative"}`;
@@ -138,6 +191,8 @@ function subscribeAll(wallet) {
     `/v2/wallet/${wallet}/positions`,
     `/v2/wallet/${wallet}/perpExecutions`,
     `/v2/wallet/${wallet}/orderChanges`,
+    `/v2/wallet/${wallet}/transfers`,
+    `/v2/wallet/${wallet}/balanceChanges`,
   ].forEach((channel) => send({ type: "subscribe", channel }));
 }
 
@@ -177,6 +232,9 @@ function handleMessage(msg) {
     state.trades = state.trades.slice(0, MAX_TRADES);
   } else if (msg.channel.endsWith("/orderChanges")) {
     state.orders = extractRows(msg.data).slice(0, 50);
+  } else if (msg.channel.endsWith("/transfers") || msg.channel.endsWith("/balanceChanges")) {
+    const incoming = extractRows(msg.data).map(normalizeTransfer).filter((t) => Number.isFinite(t.amount) && t.amount > 0);
+    state.transfers = [...incoming, ...state.transfers].sort((a, b) => b.time - a.time).slice(0, 200);
   }
 
   render();
@@ -213,6 +271,7 @@ async function backfillFromRest(wallet) {
       for (const row of extractRows(prices)) state.pricesBySymbol.set(row.symbol, row);
       for (const row of extractRows(summary)) state.marketSummaryBySymbol.set(row.symbol, row);
 
+      await loadTransfers(wallet);
       $("status").textContent = `Live mode active. REST snapshot loaded from ${base} + WebSocket streaming.`;
       render();
       return;
@@ -257,6 +316,13 @@ function render() {
   $("unrealizedPnl").className = `metric-value ${unrealized >= 0 ? "pnl-positive" : "pnl-loss"}`;
   $("pnlDetails").textContent = `${positions.length} positions · wallet ${short(state.wallet)}`;
 
+  const totalDeposits = state.transfers.filter((t) => t.type === "Deposit").reduce((sum, t) => sum + t.amount, 0);
+  const totalWithdrawals = state.transfers.filter((t) => t.type === "Withdrawal").reduce((sum, t) => sum + t.amount, 0);
+  const netFlow = totalDeposits - totalWithdrawals;
+  $("cashflowValue").textContent = formatUsd(netFlow);
+  $("cashflowValue").className = `metric-value ${netFlow >= 0 ? "pnl-positive" : "pnl-loss"}`;
+  $("cashflowDetails").textContent = `Deposited ${formatUsd(totalDeposits)} · Withdrawn ${formatUsd(totalWithdrawals)}`;
+
   $("positionsTable").innerHTML = positions.length
     ? positions.map((p) => `<tr><td>${p.market}</td><td class="${sideClass(p.side)}">${p.side}</td><td class="${sideClass(p.side)}">${formatNum(p.size, 4)}</td><td>${p.accountId}</td><td>${formatUsd(p.value)}</td><td class="${p.pnl >= 0 ? "pnl-positive" : "pnl-loss"}">${formatUsd(p.pnl)}</td><td>${formatNum(p.markPrice, 3)}</td><td>${formatNum(p.entry, 3)}</td></tr>`).join("")
     : '<tr><td colspan="8" class="muted">No positions found for this wallet yet.</td></tr>';
@@ -285,6 +351,10 @@ function render() {
     ? livePrices.map((p) => `<tr><td>${p.symbol}</td><td>${formatUsd(p.oraclePrice)}</td><td>${formatUsd(p.poolPrice)}</td><td>${new Date(Number(p.updatedAt || Date.now())).toLocaleTimeString()}</td></tr>`).join("")
     : '<tr><td colspan="4" class="muted">Waiting for price stream...</td></tr>';
 
+  $("transfersTable").innerHTML = state.transfers.length
+    ? state.transfers.slice(0, 80).map((t) => `<tr><td>${new Date(t.time).toLocaleString()}</td><td class="${t.type === "Deposit" ? "pnl-positive" : "pnl-loss"}">${t.type}</td><td>${t.token}</td><td class="${t.type === "Deposit" ? "pnl-positive" : "pnl-loss"}">${formatUsd(t.signedAmount)}</td><td>${short(String(t.txHash))}</td></tr>`).join("")
+    : `<tr><td colspan="5" class="muted">No deposit/withdrawal history found yet. Source: ${state.transferSource || "searching..."}.</td></tr>`;
+
   const risk = Math.min(100, marginUsage + Math.abs(unrealized) / 10000);
   $("riskBar").style.width = `${risk}%`;
   $("riskText").textContent = risk > 80 ? "Critical" : risk > 60 ? "High" : risk > 35 ? "Elevated" : "Calm";
@@ -302,6 +372,8 @@ function startForWallet(walletInput) {
   state.positionsBySymbol.clear();
   state.trades = [];
   state.orders = [];
+  state.transfers = [];
+  state.transferSource = "";
   render();
   backfillFromRest(wallet);
   connectWebSocket(wallet);

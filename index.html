@@ -19,9 +19,10 @@
       </section>
 
       <section class="metrics-grid">
-        <article class="metric-card glass"><h2>Account Value</h2><p id="accountValue" class="metric-value">$0.00</p><p id="accountBreakdown" class="muted">Live exposure and open-order context</p></article>
+        <article class="metric-card glass"><h2>Total On Account</h2><p id="accountValue" class="metric-value">$0.00</p><p id="accountBreakdown" class="muted">Live exposure and open-order context</p></article>
         <article class="metric-card glass"><h2>Margin Usage</h2><p id="marginUsage" class="metric-value accent">0.00%</p><div class="progress"><div id="marginBar"></div></div><div class="progress-labels muted"><span>Safe</span><span>40%</span><span>80%</span><span>LIQ</span></div></article>
         <article class="metric-card glass"><h2>Unrealized PnL</h2><p id="unrealizedPnl" class="metric-value pnl-negative">$0.00</p><p id="pnlDetails" class="muted">Live from wallet positions</p></article>
+        <article class="metric-card glass"><h2>Net Deposits</h2><p id="cashflowValue" class="metric-value">$0.00</p><p id="cashflowDetails" class="muted">Deposited $0.00 · Withdrawn $0.00</p></article>
         <article class="metric-card glass"><h2>Connection</h2><p id="connectionValue" class="metric-value positive">Disconnected</p><p id="connectionDetails" class="muted">Waiting for wallet</p></article>
       </section>
 
@@ -30,6 +31,7 @@
         <button class="tab" data-tab="trade-history">Trade History PnL</button>
         <button class="tab" data-tab="market-intel">Market Intel</button>
         <button class="tab" data-tab="spot-markets">Spot Markets</button>
+        <button class="tab" data-tab="transfers">Deposits / Withdrawals</button>
         <button class="tab" data-tab="daredevil">Daredevil</button>
       </nav>
 
@@ -38,6 +40,7 @@
         <article class="panel glass" id="panel-trade-history"><div class="split"><div><h3>Last 50 Executions</h3><table><thead><tr><th>Time</th><th>Market</th><th>Side</th><th>Size</th><th>Price</th><th>Fee</th><th>P/L</th></tr></thead><tbody id="tradeHistoryTable"></tbody></table></div><div class="pnl-box"><h3>Execution Summary</h3><p class="muted">Total fees</p><p id="realizedPnl" class="metric-value">$0.00</p><p class="muted">Buy ratio</p><p id="winRate" class="metric-value">0%</p></div></div></article>
         <article class="panel glass" id="panel-market-intel"><h3>Market Intel</h3><ul id="marketIntelList" class="intel-list"></ul></article>
         <article class="panel glass" id="panel-spot-markets"><h3>Live Prices</h3><table><thead><tr><th>Asset</th><th>Oracle Price</th><th>Pool Price</th><th>Updated</th></tr></thead><tbody id="spotTable"></tbody></table></article>
+        <article class="panel glass" id="panel-transfers"><h3>Deposits / Withdrawals</h3><p class="muted">Wallet cash flow into/out of Reya by day and hour.</p><table><thead><tr><th>Time</th><th>Type</th><th>Asset</th><th>Amount</th><th>Tx</th></tr></thead><tbody id="transfersTable"></tbody></table></article>
         <article class="panel glass" id="panel-daredevil"><h3>Daredevil Risk Meter</h3><p class="muted">Estimated from exposure and unrealized PnL.</p><div class="progress"><div id="riskBar"></div></div><p id="riskText" class="metric-value">Calm</p></article>
       </section>
     </main>
