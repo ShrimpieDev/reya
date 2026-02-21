@@ -49,7 +49,13 @@ function inferSide(sideValue, qtyValue) {
   return "N/A";
 }
 
-const parseSide = (side) => normalizeSideLabel(side) || side || "N/A";
+const parseSide = (side) => normalizeSideLabel(side) || "Unknown";
+
+function sideLabel(side) {
+  if (side === "Long") return "Buy";
+  if (side === "Short") return "Sell";
+  return "Unknown";
+}
 
 function firstDefined(obj, keys) {
   for (const key of keys) {
@@ -361,7 +367,7 @@ function deriveAccountNow(positions, unrealized, grossExposure) {
 
 function computeTradePnlEst(t) {
   const livePrice = Number(state.pricesBySymbol.get(t.market)?.poolPrice ?? state.pricesBySymbol.get(t.market)?.oraclePrice ?? t.price);
-  const direction = t.side === "Long" ? 1 : -1;
+  const direction = t.side === "Long" ? 1 : t.side === "Short" ? -1 : 0;
   return direction * (livePrice - t.price) * Math.abs(t.size) - t.fee;
 }
 
@@ -389,7 +395,7 @@ function render() {
   $("tradeHistoryTable").innerHTML = state.trades.length
     ? state.trades.map((t) => {
       const pnlEst = computeTradePnlEst(t);
-      return `<tr><td>${new Date(t.time).toLocaleString()}</td><td>${t.market}</td><td class="${sideClass(t.side)}">${t.side === "Long" ? "Buy" : t.side === "Short" ? "Sell" : t.side}</td><td>${formatNum(t.size, 4)}</td><td>${formatUsd(t.price)}</td><td class="pnl-loss">${formatUsd(t.fee)}</td><td class="${pnlEst >= 0 ? "pnl-positive" : "pnl-loss"}">${formatUsd(pnlEst)}</td></tr>`;
+      return `<tr><td>${new Date(t.time).toLocaleString()}</td><td>${t.market}</td><td class="${sideClass(t.side)}">${sideLabel(t.side)}</td><td>${formatNum(t.size, 4)}</td><td>${formatUsd(t.price)}</td><td class="pnl-loss">${formatUsd(t.fee)}</td><td class="${pnlEst >= 0 ? "pnl-positive" : "pnl-loss"}">${formatUsd(pnlEst)}</td></tr>`;
     }).join("")
     : '<tr><td colspan="7" class="muted">No wallet executions found yet.</td></tr>';
 
@@ -398,7 +404,7 @@ function render() {
   $("winRate").textContent = `${buyRatio.toFixed(1)}%`;
 
   $("spotTradesTable").innerHTML = state.spotTrades.length
-    ? state.spotTrades.map((t) => `<tr><td>${new Date(t.time).toLocaleString()}</td><td>${t.market}</td><td class="${sideClass(t.side)}">${t.side === "Long" ? "Buy" : t.side === "Short" ? "Sell" : t.side}</td><td>${formatNum(t.size, 4)}</td><td>${formatUsd(t.price)}</td><td>${formatUsd(t.value)}</td><td class="muted">Historical</td></tr>`).join("")
+    ? state.spotTrades.map((t) => `<tr><td>${new Date(t.time).toLocaleString()}</td><td>${t.market}</td><td class="${sideClass(t.side)}">${sideLabel(t.side)}</td><td>${formatNum(t.size, 4)}</td><td>${formatUsd(t.price)}</td><td>${formatUsd(t.value)}</td><td class="muted">Historical</td></tr>`).join("")
     : `<tr><td colspan="7" class="muted">No spot buys/sells found yet for this wallet.</td></tr>`;
 
   $("transfersTable").innerHTML = state.transfers.length
