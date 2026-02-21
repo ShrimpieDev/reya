@@ -47,6 +47,23 @@ function inferSide(sideValue, qtyValue) {
 
 const parseSide = (side) => normalizeSideLabel(side) || side || "N/A";
 
+function firstDefined(obj, keys) {
+  for (const key of keys) {
+    if (obj?.[key] !== undefined && obj?.[key] !== null && obj?.[key] !== "") return obj[key];
+  }
+  return undefined;
+}
+
+function positionQty(pos) {
+  const raw = firstDefined(pos, ["signedQty", "netQty", "positionQty", "qty", "size", "amount"]);
+  return Number(raw || 0);
+}
+
+function positionSide(pos, qty) {
+  const rawSide = firstDefined(pos, ["side", "positionSide", "direction", "tradeSide", "positionDirection"]);
+  return inferSide(rawSide, qty);
+}
+
 function setConnectionStatus(main, details, positive = true) {
   $("connectionValue").textContent = main;
   $("connectionValue").className = `metric-value ${positive ? "positive" : "pnl-negative"}`;
@@ -190,8 +207,8 @@ function derivePositions() {
   for (const [symbol, pos] of state.positionsBySymbol.entries()) {
     const price = state.pricesBySymbol.get(symbol);
     const markPrice = Number(price?.poolPrice ?? price?.oraclePrice ?? 0);
-    const qty = Number(pos.qty || 0);
-    const side = inferSide(pos.side, qty);
+    const qty = positionQty(pos);
+    const side = positionSide(pos, qty);
     const signedQty = side === "Short" ? -Math.abs(qty) : Math.abs(qty);
     const entry = Number(pos.avgEntryPrice || 0);
     out.push({ market: symbol, side, size: signedQty, accountId: pos.accountId ?? "-", value: Math.abs(signedQty) * markPrice, pnl: signedQty * (markPrice - entry), markPrice, entry });
