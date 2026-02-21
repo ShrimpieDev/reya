@@ -53,8 +53,18 @@ If your site does not refresh after push, usually one of these is missing:
 
 1. The repo contains `.github/workflows/deploy-pages.yml`.
 2. In **Settings → Pages**, source is set to **GitHub Actions**.
-3. You pushed a commit to GitHub (workflow now triggers on any branch).
+3. You actually pushed your latest local commit to GitHub (`git push origin <branch>`).
 4. In **Actions**, the run **Deploy static dashboard to GitHub Pages** is green.
 5. In **Settings → Actions → General**, workflow permissions are set to **Read and write permissions** (required for Pages deploy token).
 
 After the workflow finishes, hard refresh your site (`Ctrl/Cmd + Shift + R`).
+
+### Quick publish commands
+
+```bash
+git add .
+git commit -m "update dashboard"
+git push origin <your-branch>
+```
+
+Note: this coding environment can commit changes, but it cannot push to your GitHub account unless you run `git push` from your side.
