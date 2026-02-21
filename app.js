@@ -241,8 +241,6 @@ function subscribeAll(wallet) {
     `/v2/wallet/${wallet}/orderChanges`,
     `/v2/wallet/${wallet}/transfers`,
     `/v2/wallet/${wallet}/balanceChanges`,
-    `/v2/wallet/${wallet}/spotExecutions`,
-    `/v2/wallet/${wallet}/spotTrades`,
   ].forEach((channel) => send({ type: "subscribe", channel }));
 }
 
@@ -285,9 +283,6 @@ function handleMessage(msg) {
   } else if (msg.channel.endsWith("/transfers") || msg.channel.endsWith("/balanceChanges")) {
     const incoming = extractRows(msg.data).map(normalizeTransfer).filter((t) => Number.isFinite(t.amount) && t.amount > 0);
     state.transfers = [...incoming, ...state.transfers].sort((a, b) => b.time - a.time).slice(0, 200);
-  } else if (msg.channel.endsWith("/spotExecutions") || msg.channel.endsWith("/spotTrades") || msg.channel.includes("spot")) {
-    const incoming = extractRows(msg.data).map((row) => normalizeSpotTrade(row, "WS")).filter((t) => t.market !== "-" || t.price > 0 || t.size > 0);
-    state.spotTrades = [...incoming, ...state.spotTrades].sort((a, b) => b.time - a.time).slice(0, MAX_SPOT_TRADES);
   }
 
   render();
@@ -325,7 +320,7 @@ async function backfillFromRest(wallet) {
       for (const row of extractRows(summary)) state.marketSummaryBySymbol.set(row.symbol, row);
 
       await Promise.all([loadTransfers(wallet), loadSpotTrades(wallet)]);
-      $("status").textContent = `Live mode active. REST snapshot loaded from ${base} + WebSocket streaming.`;
+      $("status").textContent = `Live mode active. Loaded history from ${base}; websocket keeps perp/price data live.`;
       render();
       return;
     } catch {
@@ -405,7 +400,7 @@ function render() {
     : '<tr><td colspan="4" class="muted">Waiting for price stream...</td></tr>';
 
   $("spotTradesTable").innerHTML = state.spotTrades.length
-    ? state.spotTrades.map((t) => `<tr><td>${new Date(t.time).toLocaleString()}</td><td>${t.market}</td><td class="${sideClass(t.side)}">${t.side === "Long" ? "Buy" : t.side === "Short" ? "Sell" : t.side}</td><td>${formatNum(t.size, 4)}</td><td>${formatUsd(t.price)}</td><td>${formatUsd(t.value)}</td><td class="muted">${t.source}</td></tr>`).join("")
+    ? state.spotTrades.map((t) => `<tr><td>${new Date(t.time).toLocaleString()}</td><td>${t.market}</td><td class="${sideClass(t.side)}">${t.side === "Long" ? "Buy" : t.side === "Short" ? "Sell" : t.side}</td><td>${formatNum(t.size, 4)}</td><td>${formatUsd(t.price)}</td><td>${formatUsd(t.value)}</td><td class="muted">Historical</td></tr>`).join("")
     : `<tr><td colspan="7" class="muted">No spot buys/sells found yet for this wallet.</td></tr>`;
 
   $("transfersTable").innerHTML = state.transfers.length
