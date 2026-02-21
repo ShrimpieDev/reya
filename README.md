@@ -7,6 +7,7 @@ Features:
 - live wallet perp executions (trade feed)
 - live market summaries and prices
 - automatic reconnect + endpoint fallback
+- REST snapshot backfill for positions/trades/prices (when available)
 - GitHub Pages deployable static site
 
 ## Run locally
@@ -19,20 +20,25 @@ Open:
 - `http://localhost:4173`
 - Optional wallet deep-link: `http://localhost:4173/?wallet=0x...`
 
-## Live API channels used automatically
+## Live data flow
 
-On load (and on wallet submit), the app connects to:
-- `wss://ws.reya.xyz`
-- fallback: `wss://websocket-testnet.reya.xyz`
+On load (and on wallet submit), the app:
 
-Then subscribes to:
-- `/v2/wallet/{address}/positions`
-- `/v2/wallet/{address}/perpExecutions`
-- `/v2/wallet/{address}/orderChanges`
-- `/v2/prices`
-- `/v2/markets/summary`
+1. Normalizes the wallet address to lowercase
+2. Tries REST snapshot backfill from:
+   - `https://api.reya.xyz`
+   - `https://reya.xyz/api`
+3. Connects to WebSocket:
+   - primary: `wss://ws.reya.xyz`
+   - fallback: `wss://websocket-testnet.reya.xyz`
+4. Subscribes to:
+   - `/v2/wallet/{address}/positions`
+   - `/v2/wallet/{address}/perpExecutions`
+   - `/v2/wallet/{address}/orderChanges`
+   - `/v2/prices`
+   - `/v2/markets/summary`
 
-It also handles server `ping` with client `pong`.
+The app responds to server `ping` with client `pong`.
 
 ## Publish live website on GitHub Pages
 
