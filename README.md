@@ -68,3 +68,6 @@ git push origin <your-branch>
 ```
 
 Note: this coding environment can commit changes, but it cannot push to your GitHub account unless you run `git push` from your side.
+
+
+6. If GitHub says "This branch had an error being deployed", keep `.nojekyll` in the repo root to bypass Jekyll branch-build failures.
