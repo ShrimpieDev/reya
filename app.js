@@ -60,8 +60,28 @@ function positionQty(pos) {
 }
 
 function positionSide(pos, qty) {
+  const boolSide = firstDefined(pos, ["isLong", "long", "isBuy"]);
+  if (boolSide === true || boolSide === "true") return "Long";
+  if (boolSide === false || boolSide === "false") return "Short";
+
+  const boolShort = firstDefined(pos, ["isShort", "short", "isSell"]);
+  if (boolShort === true || boolShort === "true") return "Short";
+  if (boolShort === false || boolShort === "false") return "Long";
+
   const rawSide = firstDefined(pos, ["side", "positionSide", "direction", "tradeSide", "positionDirection"]);
   return inferSide(rawSide, qty);
+}
+
+function positionEntryPrice(pos) {
+  return Number(firstDefined(pos, ["avgEntryPrice", "entryPrice", "avgOpenPrice", "openPrice", "averageEntryPrice"]) || 0);
+}
+
+function positionPnl(pos, signedQty, markPrice, entry) {
+  const direct = Number(firstDefined(pos, ["unrealizedPnl", "unrealizedPNL", "uPnl", "openPnl", "pnl", "profitLoss"]));
+  if (Number.isFinite(direct)) return direct;
+
+  if (!Number.isFinite(markPrice) || !Number.isFinite(entry)) return 0;
+  return signedQty * (markPrice - entry);
 }
 
 function setConnectionStatus(main, details, positive = true) {
@@ -210,8 +230,9 @@ function derivePositions() {
     const qty = positionQty(pos);
     const side = positionSide(pos, qty);
     const signedQty = side === "Short" ? -Math.abs(qty) : Math.abs(qty);
-    const entry = Number(pos.avgEntryPrice || 0);
-    out.push({ market: symbol, side, size: signedQty, accountId: pos.accountId ?? "-", value: Math.abs(signedQty) * markPrice, pnl: signedQty * (markPrice - entry), markPrice, entry });
+    const entry = positionEntryPrice(pos);
+    const pnl = positionPnl(pos, signedQty, markPrice, entry);
+    out.push({ market: symbol, side, size: signedQty, accountId: pos.accountId ?? "-", value: Math.abs(signedQty) * markPrice, pnl, markPrice, entry });
   }
   return out;
 }
