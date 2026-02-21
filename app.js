@@ -21,14 +21,13 @@ const MAX_TRADES = 50;
 const formatUsd = (v) => new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 2 }).format(Number(v || 0));
 const formatNum = (v, d = 3) => Number(v || 0).toLocaleString("en-US", { minimumFractionDigits: d, maximumFractionDigits: d });
 const short = (x) => (x ? `${x.slice(0, 6)}...${x.slice(-4)}` : "-");
+const parseSide = (side) => (side === "B" ? "Long" : side === "S" ? "Short" : side || "N/A");
 
 function setConnectionStatus(main, details, positive = true) {
   $("connectionValue").textContent = main;
   $("connectionValue").className = `metric-value ${positive ? "positive" : "pnl-negative"}`;
   $("connectionDetails").textContent = details;
 }
-
-const parseSide = (side) => (side === "B" ? "Long" : side === "S" ? "Short" : side || "N/A");
 
 function connectWebSocket(wallet) {
   clearTimeout(state.reconnectTimer);
@@ -168,11 +167,18 @@ function derivePositions() {
     const price = state.pricesBySymbol.get(symbol);
     const markPrice = Number(price?.poolPrice ?? price?.oraclePrice ?? 0);
     const qty = Number(pos.qty || 0);
-    const signedQty = pos.side === "S" ? -Math.abs(qty) : Math.abs(qty);
+    const side = pos.side === "S" ? "Short" : "Long";
+    const signedQty = side === "Short" ? -Math.abs(qty) : Math.abs(qty);
     const entry = Number(pos.avgEntryPrice || 0);
-    out.push({ market: symbol, size: signedQty, accountId: pos.accountId ?? "-", value: Math.abs(signedQty) * markPrice, pnl: signedQty * (markPrice - entry), markPrice, entry });
+    out.push({ market: symbol, side, size: signedQty, accountId: pos.accountId ?? "-", value: Math.abs(signedQty) * markPrice, pnl: signedQty * (markPrice - entry), markPrice, entry });
   }
   return out;
+}
+
+function computeTradePnlEst(t) {
+  const livePrice = Number(state.pricesBySymbol.get(t.market)?.poolPrice ?? state.pricesBySymbol.get(t.market)?.oraclePrice ?? t.price);
+  const direction = t.side === "Long" ? 1 : -1;
+  return direction * (livePrice - t.price) * Math.abs(t.size) - t.fee;
 }
 
 function render() {
@@ -186,21 +192,24 @@ function render() {
   $("marginUsage").textContent = `${marginUsage.toFixed(2)}%`;
   $("marginBar").style.width = `${marginUsage}%`;
   $("unrealizedPnl").textContent = formatUsd(unrealized);
-  $("unrealizedPnl").className = `metric-value ${unrealized >= 0 ? "positive" : "pnl-negative"}`;
+  $("unrealizedPnl").className = `metric-value ${unrealized >= 0 ? "pnl-positive" : "pnl-loss"}`;
   $("pnlDetails").textContent = `${positions.length} positions · wallet ${short(state.wallet)}`;
 
   $("positionsTable").innerHTML = positions.length
-    ? positions.map((p) => `<tr><td>${p.market}</td><td class="${p.size >= 0 ? "positive" : "pnl-negative"}">${formatNum(p.size, 4)}</td><td>${p.accountId}</td><td>${formatUsd(p.value)}</td><td class="${p.pnl >= 0 ? "positive" : "pnl-negative"}">${formatUsd(p.pnl)}</td><td>${formatNum(p.markPrice, 3)}</td><td>${formatNum(p.entry, 3)}</td></tr>`).join("")
-    : '<tr><td colspan="7" class="muted">No positions found for this wallet yet.</td></tr>';
+    ? positions.map((p) => `<tr><td>${p.market}</td><td class="${p.side === "Long" ? "long-text" : "short-text"}">${p.side}</td><td class="${p.side === "Long" ? "long-text" : "short-text"}">${formatNum(p.size, 4)}</td><td>${p.accountId}</td><td>${formatUsd(p.value)}</td><td class="${p.pnl >= 0 ? "pnl-positive" : "pnl-loss"}">${formatUsd(p.pnl)}</td><td>${formatNum(p.markPrice, 3)}</td><td>${formatNum(p.entry, 3)}</td></tr>`).join("")
+    : '<tr><td colspan="8" class="muted">No positions found for this wallet yet.</td></tr>';
 
   const totalFees = state.trades.reduce((sum, t) => sum + t.fee, 0);
   const buyRatio = state.trades.length ? (state.trades.filter((t) => t.side === "Long").length / state.trades.length) * 100 : 0;
   $("tradeHistoryTable").innerHTML = state.trades.length
-    ? state.trades.map((t) => `<tr><td>${new Date(t.time).toLocaleString()}</td><td>${t.market}</td><td>${t.side}</td><td>${formatNum(t.size, 4)}</td><td>${formatUsd(t.price)}</td><td class="pnl-negative">${formatUsd(t.fee)}</td></tr>`).join("")
-    : '<tr><td colspan="6" class="muted">No wallet executions found yet.</td></tr>';
+    ? state.trades.map((t) => {
+      const pnlEst = computeTradePnlEst(t);
+      return `<tr><td>${new Date(t.time).toLocaleString()}</td><td>${t.market}</td><td class="${t.side === "Long" ? "long-text" : "short-text"}">${t.side}</td><td>${formatNum(t.size, 4)}</td><td>${formatUsd(t.price)}</td><td class="pnl-loss">${formatUsd(t.fee)}</td><td class="${pnlEst >= 0 ? "pnl-positive" : "pnl-loss"}">${formatUsd(pnlEst)}</td></tr>`;
+    }).join("")
+    : '<tr><td colspan="7" class="muted">No wallet executions found yet.</td></tr>';
 
   $("realizedPnl").textContent = formatUsd(totalFees * -1);
-  $("realizedPnl").className = "metric-value pnl-negative";
+  $("realizedPnl").className = "metric-value pnl-loss";
   $("winRate").textContent = `${buyRatio.toFixed(1)}%`;
 
   const topSummaries = [...state.marketSummaryBySymbol.values()].slice(0, 6);
@@ -217,7 +226,7 @@ function render() {
   const risk = Math.min(100, marginUsage + Math.abs(unrealized) / 10000);
   $("riskBar").style.width = `${risk}%`;
   $("riskText").textContent = risk > 80 ? "Critical" : risk > 60 ? "High" : risk > 35 ? "Elevated" : "Calm";
-  $("riskText").className = `metric-value ${risk > 60 ? "pnl-negative" : "positive"}`;
+  $("riskText").className = `metric-value ${risk > 60 ? "pnl-loss" : "pnl-positive"}`;
 }
 
 function startForWallet(walletInput) {
