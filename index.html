@@ -32,6 +32,7 @@
         <button class="tab" data-tab="market-intel">Market Intel</button>
         <button class="tab" data-tab="spot-markets">Spot Markets</button>
         <button class="tab" data-tab="spot-trades">Spot Buys / Sells</button>
+        <button class="tab" data-tab="spot-transfers">Spot Deposits / Withdrawals</button>
         <button class="tab" data-tab="transfers">Deposits / Withdrawals</button>
         <button class="tab" data-tab="daredevil">Daredevil</button>
       </nav>
@@ -42,6 +43,7 @@
         <article class="panel glass" id="panel-market-intel"><h3>Market Intel</h3><ul id="marketIntelList" class="intel-list"></ul></article>
         <article class="panel glass" id="panel-spot-markets"><h3>Live Prices</h3><table><thead><tr><th>Asset</th><th>Oracle Price</th><th>Pool Price</th><th>Updated</th></tr></thead><tbody id="spotTable"></tbody></table></article>
         <article class="panel glass" id="panel-spot-trades"><h3>Spot Buys / Sells History</h3><p class="muted">Historical spot buy/sell records for this wallet (not live streaming).</p><table><thead><tr><th>Time</th><th>Market</th><th>Side</th><th>Size</th><th>Price</th><th>Value</th><th>Type</th></tr></thead><tbody id="spotTradesTable"></tbody></table></article>
+        <article class="panel glass" id="panel-spot-transfers"><h3>Spot Deposits / Withdrawals History</h3><p class="muted">Historical spot deposit/withdraw records for this wallet (not live streaming).</p><table><thead><tr><th>Time</th><th>Type</th><th>Asset</th><th>Amount</th><th>Tx</th></tr></thead><tbody id="spotTransfersTable"></tbody></table></article>
         <article class="panel glass" id="panel-transfers"><h3>Deposits / Withdrawals</h3><p class="muted">Wallet cash flow into/out of Reya by day and hour.</p><table><thead><tr><th>Time</th><th>Type</th><th>Asset</th><th>Amount</th><th>Tx</th></tr></thead><tbody id="transfersTable"></tbody></table></article>
         <article class="panel glass" id="panel-daredevil"><h3>Daredevil Risk Meter</h3><p class="muted">Estimated from exposure and unrealized PnL.</p><div class="progress"><div id="riskBar"></div></div><p id="riskText" class="metric-value">Calm</p></article>
       </section>

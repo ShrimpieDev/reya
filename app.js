@@ -10,6 +10,8 @@ const state = {
   transfers: [],
   transferSource: "",
   spotTrades: [],
+  spotTransfers: [],
+  spotTransferSource: "",
   ws: null,
   reconnectTimer: null,
   reconnectAttempt: 0,
@@ -131,6 +133,8 @@ async function loadSpotTrades(wallet) {
     }
   }
   state.spotTrades = [];
+  state.spotTransfers = [];
+  state.spotTransferSource = "";
   return false;
 }
 
@@ -154,6 +158,35 @@ function normalizeTransfer(row) {
     token: firstDefined(row, ["asset", "token", "symbol", "currency"]) || "USD",
     txHash: firstDefined(row, ["txHash", "transactionHash", "hash", "id"]) || "-",
   };
+}
+
+async function loadSpotTransferHistory(wallet) {
+  const pathOptions = [
+    `/v2/wallet/${wallet}/spotTransfers`,
+    `/v2/wallet/${wallet}/spotDeposits`,
+    `/v2/wallet/${wallet}/spotWithdrawals`,
+    `/v2/wallet/${wallet}/spotBalanceChanges`,
+  ];
+
+  for (const base of REST_CANDIDATES) {
+    for (const path of pathOptions) {
+      try {
+        const payload = await fetchJson(`${base}${path}`);
+        const rows = extractRows(payload).map(normalizeTransfer).filter((t) => Number.isFinite(t.amount) && t.amount > 0);
+        if (rows.length) {
+          state.spotTransfers = rows.sort((a, b) => b.time - a.time).slice(0, 200);
+          state.spotTransferSource = `${base}${path}`;
+          return true;
+        }
+      } catch {
+        // continue lookup
+      }
+    }
+  }
+
+  state.spotTransfers = [];
+  state.spotTransferSource = "No spot transfer endpoint discovered yet";
+  return false;
 }
 
 async function loadTransfers(wallet) {
@@ -319,7 +352,7 @@ async function backfillFromRest(wallet) {
       for (const row of extractRows(prices)) state.pricesBySymbol.set(row.symbol, row);
       for (const row of extractRows(summary)) state.marketSummaryBySymbol.set(row.symbol, row);
 
-      await Promise.all([loadTransfers(wallet), loadSpotTrades(wallet)]);
+      await Promise.all([loadTransfers(wallet), loadSpotTrades(wallet), loadSpotTransferHistory(wallet)]);
       $("status").textContent = `Live mode active. Loaded history from ${base}; websocket keeps perp/price data live.`;
       render();
       return;
@@ -403,6 +436,10 @@ function render() {
     ? state.spotTrades.map((t) => `<tr><td>${new Date(t.time).toLocaleString()}</td><td>${t.market}</td><td class="${sideClass(t.side)}">${t.side === "Long" ? "Buy" : t.side === "Short" ? "Sell" : t.side}</td><td>${formatNum(t.size, 4)}</td><td>${formatUsd(t.price)}</td><td>${formatUsd(t.value)}</td><td class="muted">Historical</td></tr>`).join("")
     : `<tr><td colspan="7" class="muted">No spot buys/sells found yet for this wallet.</td></tr>`;
 
+  $("spotTransfersTable").innerHTML = state.spotTransfers.length
+    ? state.spotTransfers.slice(0, 80).map((t) => `<tr><td>${new Date(t.time).toLocaleString()}</td><td class="${t.type === "Deposit" ? "pnl-positive" : "pnl-loss"}">${t.type}</td><td>${t.token}</td><td class="${t.type === "Deposit" ? "pnl-positive" : "pnl-loss"}">${formatUsd(t.signedAmount)}</td><td>${short(String(t.txHash))}</td></tr>`).join("")
+    : `<tr><td colspan="5" class="muted">No spot deposit/withdraw history found yet. Source: ${state.spotTransferSource || "searching..."}.</td></tr>`;
+
   $("transfersTable").innerHTML = state.transfers.length
     ? state.transfers.slice(0, 80).map((t) => `<tr><td>${new Date(t.time).toLocaleString()}</td><td class="${t.type === "Deposit" ? "pnl-positive" : "pnl-loss"}">${t.type}</td><td>${t.token}</td><td class="${t.type === "Deposit" ? "pnl-positive" : "pnl-loss"}">${formatUsd(t.signedAmount)}</td><td>${short(String(t.txHash))}</td></tr>`).join("")
     : `<tr><td colspan="5" class="muted">No deposit/withdrawal history found yet. Source: ${state.transferSource || "searching..."}.</td></tr>`;
@@ -427,6 +464,8 @@ function startForWallet(walletInput) {
   state.transfers = [];
   state.transferSource = "";
   state.spotTrades = [];
+  state.spotTransfers = [];
+  state.spotTransferSource = "";
   render();
   backfillFromRest(wallet);
   connectWebSocket(wallet);
