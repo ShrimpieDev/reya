@@ -10,8 +10,6 @@ const state = {
   transfers: [],
   transferSource: "",
   spotTrades: [],
-  spotTransfers: [],
-  spotTransferSource: "",
   ws: null,
   reconnectTimer: null,
   reconnectAttempt: 0,
@@ -133,8 +131,6 @@ async function loadSpotTrades(wallet) {
     }
   }
   state.spotTrades = [];
-  state.spotTransfers = [];
-  state.spotTransferSource = "";
   return false;
 }
 
@@ -158,35 +154,6 @@ function normalizeTransfer(row) {
     token: firstDefined(row, ["asset", "token", "symbol", "currency"]) || "USD",
     txHash: firstDefined(row, ["txHash", "transactionHash", "hash", "id"]) || "-",
   };
-}
-
-async function loadSpotTransferHistory(wallet) {
-  const pathOptions = [
-    `/v2/wallet/${wallet}/spotTransfers`,
-    `/v2/wallet/${wallet}/spotDeposits`,
-    `/v2/wallet/${wallet}/spotWithdrawals`,
-    `/v2/wallet/${wallet}/spotBalanceChanges`,
-  ];
-
-  for (const base of REST_CANDIDATES) {
-    for (const path of pathOptions) {
-      try {
-        const payload = await fetchJson(`${base}${path}`);
-        const rows = extractRows(payload).map(normalizeTransfer).filter((t) => Number.isFinite(t.amount) && t.amount > 0);
-        if (rows.length) {
-          state.spotTransfers = rows.sort((a, b) => b.time - a.time).slice(0, 200);
-          state.spotTransferSource = `${base}${path}`;
-          return true;
-        }
-      } catch {
-        // continue lookup
-      }
-    }
-  }
-
-  state.spotTransfers = [];
-  state.spotTransferSource = "No spot transfer endpoint discovered yet";
-  return false;
 }
 
 async function loadTransfers(wallet) {
@@ -219,9 +186,12 @@ async function loadTransfers(wallet) {
 }
 
 function setConnectionStatus(main, details, positive = true) {
-  $("connectionValue").textContent = main;
-  $("connectionValue").className = `metric-value ${positive ? "positive" : "pnl-negative"}`;
-  $("connectionDetails").textContent = details;
+  const valueEl = $("connectionValue");
+  const detailsEl = $("connectionDetails");
+  if (!valueEl || !detailsEl) return;
+  valueEl.textContent = main;
+  valueEl.className = `metric-value ${positive ? "positive" : "pnl-negative"}`;
+  detailsEl.textContent = details;
 }
 
 function connectWebSocket(wallet) {
@@ -352,7 +322,7 @@ async function backfillFromRest(wallet) {
       for (const row of extractRows(prices)) state.pricesBySymbol.set(row.symbol, row);
       for (const row of extractRows(summary)) state.marketSummaryBySymbol.set(row.symbol, row);
 
-      await Promise.all([loadTransfers(wallet), loadSpotTrades(wallet), loadSpotTransferHistory(wallet)]);
+      await Promise.all([loadTransfers(wallet), loadSpotTrades(wallet)]);
       $("status").textContent = `Live mode active. Loaded history from ${base}; websocket keeps perp/price data live.`;
       render();
       return;
@@ -377,6 +347,18 @@ function derivePositions() {
   return out;
 }
 
+
+function deriveAccountNow(positions, unrealized, grossExposure) {
+  const candidates = [];
+  for (const pos of state.positionsBySymbol.values()) {
+    const direct = Number(firstDefined(pos, ["accountValue", "equity", "collateral", "marginBalance", "accountBalance", "balance", "totalValue"]));
+    if (Number.isFinite(direct) && direct > 0) candidates.push(direct);
+  }
+  if (candidates.length) return Math.max(...candidates);
+  const inferred = grossExposure + unrealized;
+  return Number.isFinite(inferred) && inferred > 0 ? inferred : grossExposure;
+}
+
 function computeTradePnlEst(t) {
   const livePrice = Number(state.pricesBySymbol.get(t.market)?.poolPrice ?? state.pricesBySymbol.get(t.market)?.oraclePrice ?? t.price);
   const direction = t.side === "Long" ? 1 : -1;
@@ -387,22 +369,16 @@ function render() {
   const positions = derivePositions();
   const unrealized = positions.reduce((sum, p) => sum + p.pnl, 0);
   const grossExposure = positions.reduce((sum, p) => sum + Math.abs(p.value), 0);
-  const marginUsage = Math.min(99, grossExposure === 0 ? 0 : (grossExposure / Math.max(1, grossExposure + unrealized)) * 100);
+  const accountNow = deriveAccountNow(positions, unrealized, grossExposure);
+  const marginUsage = Math.min(99, accountNow <= 0 ? 0 : (grossExposure / accountNow) * 100);
 
-  $("accountValue").textContent = formatUsd(grossExposure + unrealized);
+  $("accountValue").textContent = formatUsd(accountNow);
   $("accountBreakdown").textContent = `Exposure ${formatUsd(grossExposure)} · Open Orders ${state.orders.length}`;
   $("marginUsage").textContent = `${marginUsage.toFixed(2)}%`;
   $("marginBar").style.width = `${marginUsage}%`;
   $("unrealizedPnl").textContent = formatUsd(unrealized);
   $("unrealizedPnl").className = `metric-value ${unrealized >= 0 ? "pnl-positive" : "pnl-loss"}`;
   $("pnlDetails").textContent = `${positions.length} positions · wallet ${short(state.wallet)}`;
-
-  const totalDeposits = state.transfers.filter((t) => t.type === "Deposit").reduce((sum, t) => sum + t.amount, 0);
-  const totalWithdrawals = state.transfers.filter((t) => t.type === "Withdrawal").reduce((sum, t) => sum + t.amount, 0);
-  const netFlow = totalDeposits - totalWithdrawals;
-  $("cashflowValue").textContent = formatUsd(netFlow);
-  $("cashflowValue").className = `metric-value ${netFlow >= 0 ? "pnl-positive" : "pnl-loss"}`;
-  $("cashflowDetails").textContent = `Deposited ${formatUsd(totalDeposits)} · Withdrawn ${formatUsd(totalWithdrawals)}`;
 
   $("positionsTable").innerHTML = positions.length
     ? positions.map((p) => `<tr><td>${p.market}</td><td class="${sideClass(p.side)}">${p.side}</td><td class="${sideClass(p.side)}">${formatNum(p.size, 4)}</td><td>${p.accountId}</td><td>${formatUsd(p.value)}</td><td class="${p.pnl >= 0 ? "pnl-positive" : "pnl-loss"}">${formatUsd(p.pnl)}</td><td>${formatNum(p.markPrice, 3)}</td><td>${formatNum(p.entry, 3)}</td></tr>`).join("")
@@ -421,33 +397,14 @@ function render() {
   $("realizedPnl").className = "metric-value pnl-loss";
   $("winRate").textContent = `${buyRatio.toFixed(1)}%`;
 
-  const topSummaries = [...state.marketSummaryBySymbol.values()].slice(0, 6);
-  const latestTime = state.lastMessageAt ? new Date(state.lastMessageAt).toLocaleTimeString() : "-";
-  $("marketIntelList").innerHTML = topSummaries.length
-    ? topSummaries.map((s) => `<li>${s.symbol}: funding ${formatNum(s.fundingRate, 6)} · vol24h ${formatNum(s.volume24h, 2)} · updated ${latestTime}</li>`).join("")
-    : "<li class='muted'>Waiting for market summaries...</li>";
-
-  const livePrices = [...state.pricesBySymbol.values()].slice(0, 15);
-  $("spotTable").innerHTML = livePrices.length
-    ? livePrices.map((p) => `<tr><td>${p.symbol}</td><td>${formatUsd(p.oraclePrice)}</td><td>${formatUsd(p.poolPrice)}</td><td>${new Date(Number(p.updatedAt || Date.now())).toLocaleTimeString()}</td></tr>`).join("")
-    : '<tr><td colspan="4" class="muted">Waiting for price stream...</td></tr>';
-
   $("spotTradesTable").innerHTML = state.spotTrades.length
     ? state.spotTrades.map((t) => `<tr><td>${new Date(t.time).toLocaleString()}</td><td>${t.market}</td><td class="${sideClass(t.side)}">${t.side === "Long" ? "Buy" : t.side === "Short" ? "Sell" : t.side}</td><td>${formatNum(t.size, 4)}</td><td>${formatUsd(t.price)}</td><td>${formatUsd(t.value)}</td><td class="muted">Historical</td></tr>`).join("")
     : `<tr><td colspan="7" class="muted">No spot buys/sells found yet for this wallet.</td></tr>`;
-
-  $("spotTransfersTable").innerHTML = state.spotTransfers.length
-    ? state.spotTransfers.slice(0, 80).map((t) => `<tr><td>${new Date(t.time).toLocaleString()}</td><td class="${t.type === "Deposit" ? "pnl-positive" : "pnl-loss"}">${t.type}</td><td>${t.token}</td><td class="${t.type === "Deposit" ? "pnl-positive" : "pnl-loss"}">${formatUsd(t.signedAmount)}</td><td>${short(String(t.txHash))}</td></tr>`).join("")
-    : `<tr><td colspan="5" class="muted">No spot deposit/withdraw history found yet. Source: ${state.spotTransferSource || "searching..."}.</td></tr>`;
 
   $("transfersTable").innerHTML = state.transfers.length
     ? state.transfers.slice(0, 80).map((t) => `<tr><td>${new Date(t.time).toLocaleString()}</td><td class="${t.type === "Deposit" ? "pnl-positive" : "pnl-loss"}">${t.type}</td><td>${t.token}</td><td class="${t.type === "Deposit" ? "pnl-positive" : "pnl-loss"}">${formatUsd(t.signedAmount)}</td><td>${short(String(t.txHash))}</td></tr>`).join("")
     : `<tr><td colspan="5" class="muted">No deposit/withdrawal history found yet. Source: ${state.transferSource || "searching..."}.</td></tr>`;
 
-  const risk = Math.min(100, marginUsage + Math.abs(unrealized) / 10000);
-  $("riskBar").style.width = `${risk}%`;
-  $("riskText").textContent = risk > 80 ? "Critical" : risk > 60 ? "High" : risk > 35 ? "Elevated" : "Calm";
-  $("riskText").className = `metric-value ${risk > 60 ? "pnl-loss" : "pnl-positive"}`;
 }
 
 function startForWallet(walletInput) {
@@ -464,8 +421,6 @@ function startForWallet(walletInput) {
   state.transfers = [];
   state.transferSource = "";
   state.spotTrades = [];
-  state.spotTransfers = [];
-  state.spotTransferSource = "";
   render();
   backfillFromRest(wallet);
   connectWebSocket(wallet);
