@@ -18,10 +18,31 @@ const WS_ENDPOINTS = ["wss://ws.reya.xyz", "wss://websocket-testnet.reya.xyz"];
 const REST_CANDIDATES = ["https://api.reya.xyz", "https://reya.xyz/api"];
 const MAX_TRADES = 50;
 
+function sideClass(side) {
+  if (side === "Long") return "long-text";
+  if (side === "Short") return "short-text";
+  return "muted";
+}
+
 const formatUsd = (v) => new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 2 }).format(Number(v || 0));
 const formatNum = (v, d = 3) => Number(v || 0).toLocaleString("en-US", { minimumFractionDigits: d, maximumFractionDigits: d });
 const short = (x) => (x ? `${x.slice(0, 6)}...${x.slice(-4)}` : "-");
-const parseSide = (side) => (side === "B" ? "Long" : side === "S" ? "Short" : side || "N/A");
+function normalizeSideLabel(value) {
+  if (!value) return null;
+  const upper = String(value).trim().toUpperCase();
+  if (["B", "BUY", "LONG", "L"].includes(upper)) return "Long";
+  if (["S", "SELL", "SHORT"].includes(upper)) return "Short";
+  return null;
+}
+
+function inferSide(sideValue, qtyValue) {
+  const qty = Number(qtyValue || 0);
+  if (qty < 0) return "Short";
+  if (qty > 0) return "Long";
+  return normalizeSideLabel(sideValue) || "N/A";
+}
+
+const parseSide = (side) => normalizeSideLabel(side) || side || "N/A";
 
 function setConnectionStatus(main, details, positive = true) {
   $("connectionValue").textContent = main;
@@ -167,7 +188,7 @@ function derivePositions() {
     const price = state.pricesBySymbol.get(symbol);
     const markPrice = Number(price?.poolPrice ?? price?.oraclePrice ?? 0);
     const qty = Number(pos.qty || 0);
-    const side = pos.side === "S" ? "Short" : "Long";
+    const side = inferSide(pos.side, qty);
     const signedQty = side === "Short" ? -Math.abs(qty) : Math.abs(qty);
     const entry = Number(pos.avgEntryPrice || 0);
     out.push({ market: symbol, side, size: signedQty, accountId: pos.accountId ?? "-", value: Math.abs(signedQty) * markPrice, pnl: signedQty * (markPrice - entry), markPrice, entry });
@@ -196,7 +217,7 @@ function render() {
   $("pnlDetails").textContent = `${positions.length} positions · wallet ${short(state.wallet)}`;
 
   $("positionsTable").innerHTML = positions.length
-    ? positions.map((p) => `<tr><td>${p.market}</td><td class="${p.side === "Long" ? "long-text" : "short-text"}">${p.side}</td><td class="${p.side === "Long" ? "long-text" : "short-text"}">${formatNum(p.size, 4)}</td><td>${p.accountId}</td><td>${formatUsd(p.value)}</td><td class="${p.pnl >= 0 ? "pnl-positive" : "pnl-loss"}">${formatUsd(p.pnl)}</td><td>${formatNum(p.markPrice, 3)}</td><td>${formatNum(p.entry, 3)}</td></tr>`).join("")
+    ? positions.map((p) => `<tr><td>${p.market}</td><td class="${sideClass(p.side)}">${p.side}</td><td class="${sideClass(p.side)}">${formatNum(p.size, 4)}</td><td>${p.accountId}</td><td>${formatUsd(p.value)}</td><td class="${p.pnl >= 0 ? "pnl-positive" : "pnl-loss"}">${formatUsd(p.pnl)}</td><td>${formatNum(p.markPrice, 3)}</td><td>${formatNum(p.entry, 3)}</td></tr>`).join("")
     : '<tr><td colspan="8" class="muted">No positions found for this wallet yet.</td></tr>';
 
   const totalFees = state.trades.reduce((sum, t) => sum + t.fee, 0);
@@ -204,7 +225,7 @@ function render() {
   $("tradeHistoryTable").innerHTML = state.trades.length
     ? state.trades.map((t) => {
       const pnlEst = computeTradePnlEst(t);
-      return `<tr><td>${new Date(t.time).toLocaleString()}</td><td>${t.market}</td><td class="${t.side === "Long" ? "long-text" : "short-text"}">${t.side}</td><td>${formatNum(t.size, 4)}</td><td>${formatUsd(t.price)}</td><td class="pnl-loss">${formatUsd(t.fee)}</td><td class="${pnlEst >= 0 ? "pnl-positive" : "pnl-loss"}">${formatUsd(pnlEst)}</td></tr>`;
+      return `<tr><td>${new Date(t.time).toLocaleString()}</td><td>${t.market}</td><td class="${sideClass(t.side)}">${t.side}</td><td>${formatNum(t.size, 4)}</td><td>${formatUsd(t.price)}</td><td class="pnl-loss">${formatUsd(t.fee)}</td><td class="${pnlEst >= 0 ? "pnl-positive" : "pnl-loss"}">${formatUsd(pnlEst)}</td></tr>`;
     }).join("")
     : '<tr><td colspan="7" class="muted">No wallet executions found yet.</td></tr>';
 
