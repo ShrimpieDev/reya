@@ -522,7 +522,11 @@ document.querySelectorAll(".tab").forEach((tab) => tab.addEventListener("click",
 }));
 
 const urlWallet = new URLSearchParams(window.location.search).get("wallet");
-const defaultWallet = urlWallet || "0x128B4D9A062d137710F362d2b5c0B81E2726cC40";
+const defaultWallet = urlWallet || "";
 $("walletInput").value = defaultWallet;
-setConnectionStatus("Connecting...", "Starting live stream", true);
-startForWallet(defaultWallet);
+if (defaultWallet) {
+  setConnectionStatus("Connecting...", "Starting live stream", true);
+  startForWallet(defaultWallet);
+} else {
+  setConnectionStatus("Idle", "Enter a wallet to start live stream", false);
+}

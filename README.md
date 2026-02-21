@@ -22,7 +22,7 @@ Open:
 
 ## Live data flow
 
-On load (and on wallet submit), the app:
+When a wallet is provided (via form or `?wallet=` URL), the app:
 
 1. Normalizes the wallet address to lowercase
 2. Tries REST snapshot backfill from:
