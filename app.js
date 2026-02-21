@@ -9,6 +9,7 @@ const state = {
   marketSummaryBySymbol: new Map(),
   transfers: [],
   transferSource: "",
+  spotTrades: [],
   ws: null,
   reconnectTimer: null,
   reconnectAttempt: 0,
@@ -19,6 +20,7 @@ const state = {
 const WS_ENDPOINTS = ["wss://ws.reya.xyz", "wss://websocket-testnet.reya.xyz"];
 const REST_CANDIDATES = ["https://api.reya.xyz", "https://reya.xyz/api"];
 const MAX_TRADES = 50;
+const MAX_SPOT_TRADES = 80;
 
 function sideClass(side) {
   if (side === "Long") return "long-text";
@@ -84,6 +86,52 @@ function positionPnl(pos, signedQty, markPrice, entry) {
 
   if (!Number.isFinite(markPrice) || !Number.isFinite(entry)) return 0;
   return signedQty * (markPrice - entry);
+}
+
+function normalizeSpotTrade(row, source = "REST") {
+  const buyFlag = firstDefined(row, ["isBuy", "buy"]);
+  const side = firstDefined(row, ["side", "tradeSide", "direction", "action"])
+    || ((buyFlag === true || buyFlag === "true") ? "BUY" : (buyFlag === false || buyFlag === "false") ? "SELL" : "N/A");
+  const normalizedSide = parseSide(side);
+  const size = Number(firstDefined(row, ["qty", "size", "amount", "baseQty", "quantity"]) || 0);
+  const price = Number(firstDefined(row, ["price", "px", "avgPrice", "fillPrice"]) || 0);
+  const market = firstDefined(row, ["symbol", "market", "pair", "asset"]) || "-";
+  const time = Number(firstDefined(row, ["timestamp", "createdAt", "updatedAt", "time", "executedAt"]) || Date.now());
+  return {
+    time,
+    market,
+    side: normalizedSide,
+    size: Math.abs(size),
+    price,
+    value: Math.abs(size) * price,
+    source,
+  };
+}
+
+async function loadSpotTrades(wallet) {
+  const pathOptions = [
+    `/v2/wallet/${wallet}/spotExecutions`,
+    `/v2/wallet/${wallet}/spotTrades`,
+    `/v2/wallet/${wallet}/spotFills`,
+    `/v2/wallet/${wallet}/executions?marketType=spot`,
+  ];
+
+  for (const base of REST_CANDIDATES) {
+    for (const path of pathOptions) {
+      try {
+        const payload = await fetchJson(`${base}${path}`);
+        const rows = extractRows(payload).map((r) => normalizeSpotTrade(r, `REST ${path}`)).filter((t) => t.market !== "-" || t.price > 0 || t.size > 0);
+        if (rows.length) {
+          state.spotTrades = rows.sort((a, b) => b.time - a.time).slice(0, MAX_SPOT_TRADES);
+          return true;
+        }
+      } catch {
+        // continue
+      }
+    }
+  }
+  state.spotTrades = [];
+  return false;
 }
 
 function normalizeTransferType(value) {
@@ -193,13 +241,15 @@ function subscribeAll(wallet) {
     `/v2/wallet/${wallet}/orderChanges`,
     `/v2/wallet/${wallet}/transfers`,
     `/v2/wallet/${wallet}/balanceChanges`,
+    `/v2/wallet/${wallet}/spotExecutions`,
+    `/v2/wallet/${wallet}/spotTrades`,
   ].forEach((channel) => send({ type: "subscribe", channel }));
 }
 
 function extractRows(payload) {
   if (Array.isArray(payload)) return payload;
   if (!payload || typeof payload !== "object") return [];
-  for (const key of ["items", "data", "rows", "positions", "executions", "perpExecutions", "orderChanges"]) {
+  for (const key of ["items", "data", "rows", "positions", "executions", "perpExecutions", "orderChanges", "spotTrades", "spotExecutions"]) {
     if (Array.isArray(payload[key])) return payload[key];
   }
   return [payload];
@@ -235,6 +285,9 @@ function handleMessage(msg) {
   } else if (msg.channel.endsWith("/transfers") || msg.channel.endsWith("/balanceChanges")) {
     const incoming = extractRows(msg.data).map(normalizeTransfer).filter((t) => Number.isFinite(t.amount) && t.amount > 0);
     state.transfers = [...incoming, ...state.transfers].sort((a, b) => b.time - a.time).slice(0, 200);
+  } else if (msg.channel.endsWith("/spotExecutions") || msg.channel.endsWith("/spotTrades") || msg.channel.includes("spot")) {
+    const incoming = extractRows(msg.data).map((row) => normalizeSpotTrade(row, "WS")).filter((t) => t.market !== "-" || t.price > 0 || t.size > 0);
+    state.spotTrades = [...incoming, ...state.spotTrades].sort((a, b) => b.time - a.time).slice(0, MAX_SPOT_TRADES);
   }
 
   render();
@@ -271,7 +324,7 @@ async function backfillFromRest(wallet) {
       for (const row of extractRows(prices)) state.pricesBySymbol.set(row.symbol, row);
       for (const row of extractRows(summary)) state.marketSummaryBySymbol.set(row.symbol, row);
 
-      await loadTransfers(wallet);
+      await Promise.all([loadTransfers(wallet), loadSpotTrades(wallet)]);
       $("status").textContent = `Live mode active. REST snapshot loaded from ${base} + WebSocket streaming.`;
       render();
       return;
@@ -332,7 +385,7 @@ function render() {
   $("tradeHistoryTable").innerHTML = state.trades.length
     ? state.trades.map((t) => {
       const pnlEst = computeTradePnlEst(t);
-      return `<tr><td>${new Date(t.time).toLocaleString()}</td><td>${t.market}</td><td class="${sideClass(t.side)}">${t.side}</td><td>${formatNum(t.size, 4)}</td><td>${formatUsd(t.price)}</td><td class="pnl-loss">${formatUsd(t.fee)}</td><td class="${pnlEst >= 0 ? "pnl-positive" : "pnl-loss"}">${formatUsd(pnlEst)}</td></tr>`;
+      return `<tr><td>${new Date(t.time).toLocaleString()}</td><td>${t.market}</td><td class="${sideClass(t.side)}">${t.side === "Long" ? "Buy" : t.side === "Short" ? "Sell" : t.side}</td><td>${formatNum(t.size, 4)}</td><td>${formatUsd(t.price)}</td><td class="pnl-loss">${formatUsd(t.fee)}</td><td class="${pnlEst >= 0 ? "pnl-positive" : "pnl-loss"}">${formatUsd(pnlEst)}</td></tr>`;
     }).join("")
     : '<tr><td colspan="7" class="muted">No wallet executions found yet.</td></tr>';
 
@@ -350,6 +403,10 @@ function render() {
   $("spotTable").innerHTML = livePrices.length
     ? livePrices.map((p) => `<tr><td>${p.symbol}</td><td>${formatUsd(p.oraclePrice)}</td><td>${formatUsd(p.poolPrice)}</td><td>${new Date(Number(p.updatedAt || Date.now())).toLocaleTimeString()}</td></tr>`).join("")
     : '<tr><td colspan="4" class="muted">Waiting for price stream...</td></tr>';
+
+  $("spotTradesTable").innerHTML = state.spotTrades.length
+    ? state.spotTrades.map((t) => `<tr><td>${new Date(t.time).toLocaleString()}</td><td>${t.market}</td><td class="${sideClass(t.side)}">${t.side === "Long" ? "Buy" : t.side === "Short" ? "Sell" : t.side}</td><td>${formatNum(t.size, 4)}</td><td>${formatUsd(t.price)}</td><td>${formatUsd(t.value)}</td><td class="muted">${t.source}</td></tr>`).join("")
+    : `<tr><td colspan="7" class="muted">No spot buys/sells found yet for this wallet.</td></tr>`;
 
   $("transfersTable").innerHTML = state.transfers.length
     ? state.transfers.slice(0, 80).map((t) => `<tr><td>${new Date(t.time).toLocaleString()}</td><td class="${t.type === "Deposit" ? "pnl-positive" : "pnl-loss"}">${t.type}</td><td>${t.token}</td><td class="${t.type === "Deposit" ? "pnl-positive" : "pnl-loss"}">${formatUsd(t.signedAmount)}</td><td>${short(String(t.txHash))}</td></tr>`).join("")
@@ -374,6 +431,7 @@ function startForWallet(walletInput) {
   state.orders = [];
   state.transfers = [];
   state.transferSource = "";
+  state.spotTrades = [];
   render();
   backfillFromRest(wallet);
   connectWebSocket(wallet);
