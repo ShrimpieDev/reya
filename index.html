@@ -1,0 +1,137 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Reya Wallet Dashboard</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <main class="dashboard">
+      <section class="search-panel glass">
+        <h1>Reya Wallet Dashboard</h1>
+        <p>Paste any wallet address to load account value, live positions, and trade history.</p>
+        <form id="walletForm">
+          <input
+            id="walletInput"
+            name="wallet"
+            type="text"
+            placeholder="0x..."
+            autocomplete="off"
+            spellcheck="false"
+          />
+          <button type="submit">Load Wallet</button>
+        </form>
+        <p id="status" class="status">Ready.</p>
+      </section>
+
+      <section class="metrics-grid">
+        <article class="metric-card glass">
+          <h2>Account Value</h2>
+          <p id="accountValue" class="metric-value">$0.00</p>
+          <p id="accountBreakdown" class="muted">rUSD: $0.00 + srUSD: $0.00</p>
+        </article>
+        <article class="metric-card glass">
+          <h2>Margin Usage</h2>
+          <p id="marginUsage" class="metric-value accent">0.00%</p>
+          <div class="progress"><div id="marginBar"></div></div>
+          <div class="progress-labels muted">
+            <span>Safe</span>
+            <span>40%</span>
+            <span>80%</span>
+            <span>LIQ</span>
+          </div>
+        </article>
+        <article class="metric-card glass">
+          <h2>Unrealized PnL</h2>
+          <p id="unrealizedPnl" class="metric-value pnl-negative">$0.00</p>
+          <p id="pnlDetails" class="muted">Main · 0 open positions</p>
+        </article>
+        <article class="metric-card glass">
+          <h2>Staked (srUSD)</h2>
+          <p id="stakedValue" class="metric-value positive">$0.00</p>
+          <p id="stakedAmount" class="muted">0 srUSD @ $0.00</p>
+        </article>
+      </section>
+
+      <nav class="tabs glass" id="tabs">
+        <button class="tab active" data-tab="positions">Positions</button>
+        <button class="tab" data-tab="trade-history">Trade History PnL</button>
+        <button class="tab" data-tab="market-intel">Market Intel</button>
+        <button class="tab" data-tab="spot-markets">Spot Markets</button>
+        <button class="tab" data-tab="daredevil">Daredevil</button>
+      </nav>
+
+      <section class="tab-panels">
+        <article class="panel active glass" id="panel-positions">
+          <table>
+            <thead>
+              <tr>
+                <th>Market</th>
+                <th>Size</th>
+                <th>Account Name</th>
+                <th>Position Value</th>
+                <th>Live PnL</th>
+                <th>Mark Price</th>
+                <th>Entry</th>
+              </tr>
+            </thead>
+            <tbody id="positionsTable"></tbody>
+          </table>
+        </article>
+
+        <article class="panel glass" id="panel-trade-history">
+          <div class="split">
+            <div>
+              <h3>Last 10 Trades</h3>
+              <table>
+                <thead>
+                  <tr>
+                    <th>Time</th>
+                    <th>Market</th>
+                    <th>Side</th>
+                    <th>Size</th>
+                    <th>Price</th>
+                    <th>Realized PnL</th>
+                  </tr>
+                </thead>
+                <tbody id="tradeHistoryTable"></tbody>
+              </table>
+            </div>
+            <div class="pnl-box">
+              <h3>Trade PnL Summary</h3>
+              <p class="muted">Total realized PnL</p>
+              <p id="realizedPnl" class="metric-value">$0.00</p>
+              <p class="muted">Win rate</p>
+              <p id="winRate" class="metric-value">0%</p>
+            </div>
+          </div>
+        </article>
+
+        <article class="panel glass" id="panel-market-intel">
+          <h3>Market Intel</h3>
+          <ul id="marketIntelList" class="intel-list"></ul>
+        </article>
+
+        <article class="panel glass" id="panel-spot-markets">
+          <h3>Spot Markets</h3>
+          <table>
+            <thead>
+              <tr><th>Asset</th><th>Price</th><th>24h Change</th><th>Volume</th></tr>
+            </thead>
+            <tbody id="spotTable"></tbody>
+          </table>
+        </article>
+
+        <article class="panel glass" id="panel-daredevil">
+          <h3>Daredevil Risk Meter</h3>
+          <p class="muted">High leverage and rising margin usage increase liquidation risk.</p>
+          <div class="progress"><div id="riskBar"></div></div>
+          <p id="riskText" class="metric-value">Calm</p>
+        </article>
+      </section>
+    </main>
+
+    <script src="app.js"></script>
+  </body>
+</html>
