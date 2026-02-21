@@ -46,3 +46,14 @@ The app responds to server `ping` with client `pong`.
 2. In **Settings → Pages**, choose **GitHub Actions**.
 3. Wait for workflow: **Deploy static dashboard to GitHub Pages**.
 4. Open: `https://<your-username>.github.io/<repo-name>/`
+
+## If GitHub is not updating automatically
+
+If your site does not refresh after push, usually one of these is missing:
+
+1. The repo contains `.github/workflows/deploy-pages.yml`.
+2. In **Settings → Pages**, source is set to **GitHub Actions**.
+3. You pushed to `work`, `main`, or `master` (the workflow trigger branches).
+4. In **Actions**, the run **Deploy static dashboard to GitHub Pages** is green.
+
+After the workflow finishes, hard refresh your site (`Ctrl/Cmd + Shift + R`).
