@@ -1,12 +1,13 @@
-# Reya Wallet Dashboard
+# Reya Wallet Dashboard (Live)
 
-A live wallet dashboard UI inspired by the Reya trading layout, with:
+This is a live-only Reya dashboard (no demo fallback).
 
-- auto WebSocket connection to Reya DEX V2
-- live wallet positions stream
-- live wallet execution stream (trade history panel)
-- live market summary and prices streams
-- risk, margin, and exposure estimates from streaming data
+Features:
+- live wallet positions from Reya WebSocket v2
+- live wallet perp executions (trade feed)
+- live market summaries and prices
+- automatic reconnect + endpoint fallback
+- GitHub Pages deployable static site
 
 ## Run locally
 
@@ -14,25 +15,28 @@ A live wallet dashboard UI inspired by the Reya trading layout, with:
 python3 -m http.server 4173
 ```
 
-Open <http://localhost:4173>.
+Open:
+- `http://localhost:4173`
+- Optional wallet deep-link: `http://localhost:4173/?wallet=0x...`
 
-## How live API is now handled automatically
+## Live API channels used automatically
 
-When you enter a wallet and click **Load Wallet**, the app automatically connects to Reya WebSocket V2 and subscribes to:
+On load (and on wallet submit), the app connects to:
+- `wss://ws.reya.xyz`
+- fallback: `wss://websocket-testnet.reya.xyz`
 
+Then subscribes to:
 - `/v2/wallet/{address}/positions`
 - `/v2/wallet/{address}/perpExecutions`
+- `/v2/wallet/{address}/orderChanges`
 - `/v2/prices`
 - `/v2/markets/summary`
 
-Primary endpoint: `wss://ws.reya.xyz`  
-Fallback endpoint: `wss://websocket-testnet.reya.xyz`
+It also handles server `ping` with client `pong`.
 
-The app handles heartbeat ping/pong automatically and reconnects with backoff if disconnected.
+## Publish live website on GitHub Pages
 
-## Publish as a live website on GitHub Pages
-
-1. Push to GitHub.
-2. In **Settings → Pages**, set source to **GitHub Actions**.
-3. Wait for **Deploy static dashboard to GitHub Pages** workflow.
+1. Push repository to GitHub.
+2. In **Settings → Pages**, choose **GitHub Actions**.
+3. Wait for workflow: **Deploy static dashboard to GitHub Pages**.
 4. Open: `https://<your-username>.github.io/<repo-name>/`
